@@ -69,6 +69,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .activity-item strong { display: block; font-size: 14px; line-height: 1.45; color: var(--tc-text); }
 .activity-item small { color: var(--tc-muted); }
 .section-kicker { color: var(--tc-accent); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.st-key-guided_tour { border-top: 1px solid var(--tc-border); border-bottom: 1px solid var(--tc-border); padding: 1rem 0; margin-bottom: 1rem; animation: tc-enter 180ms ease-out; }
+.tour-topline { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.tour-count { flex: 0 0 auto; color: var(--tc-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.tour-copy { max-width: 72ch; }
+.tour-copy h3 { font-size: 20px; line-height: 1.35; margin: .35rem 0; padding: 0; }
+.tour-copy p { color: var(--tc-muted); font-size: 14px; line-height: 1.55; margin: 0 0 .2rem; overflow-wrap: anywhere; }
+.st-key-tour_actions { min-height: 40px; }
 @keyframes tc-enter { from { opacity: .35; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 700px) {
     .block-container { padding: 4rem 1rem 3rem; }

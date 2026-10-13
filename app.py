@@ -28,6 +28,7 @@ from modules.academic_ui import render_academics
 from modules.learning_ui import render_learning
 from modules.market_ui import render_market
 from modules.cv_ui import render_cv_studio
+from modules.onboarding_tour import render_guided_tour
 from storage.auth import create_account, get_account_by_user_id, login_account
 from storage.context import UserContext
 from storage.database import init_db, session_scope
@@ -186,6 +187,7 @@ with st.sidebar:
 
 twin = _load_twin()
 profile = twin_to_legacy_profile(twin) if twin else None
+tour_destination = render_guided_tour(_ctx(), automatic=acct is not None)
 
 (
     tab_dash,
@@ -206,7 +208,10 @@ profile = twin_to_legacy_profile(twin) if twin else None
         "Jobs",
         "CV Studio",
         "History",
-    ]
+    ],
+    default=tour_destination,
+    key="workspace_tab",
+    on_change="rerun",
 )
 
 # ---- Onboarding: study level + subjects/grades ----

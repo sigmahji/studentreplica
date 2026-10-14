@@ -6,9 +6,11 @@ Session stores user_id (+ UI flags only). Twin data always reloads by user_id.
 from __future__ import annotations
 
 from datetime import date
+import logging
 from pathlib import Path
 
 import streamlit as st
+from sqlalchemy.exc import SQLAlchemyError
 from modules.ui import render_shell, render_bullets
 from modules.dashboard_ui import render_dashboard, render_progress_chart
 
@@ -31,7 +33,7 @@ from modules.cv_ui import render_cv_studio
 from modules.onboarding_tour import render_guided_tour
 from storage.auth import create_account, get_account_by_user_id, login_account
 from storage.context import UserContext
-from storage.database import init_db, session_scope
+from storage.database import init_db, reset_engine, session_scope
 from storage.repository import TwinRepository
 from storage.twin_schema import twin_to_legacy_profile
 
@@ -42,7 +44,21 @@ st.set_page_config(
     ),
     layout="wide",
 )
-init_db()
+render_shell()
+try:
+    storage_engine = init_db()
+except (SQLAlchemyError, OSError, ValueError, RuntimeError, ImportError) as error:
+    logging.getLogger("student_twin.storage").warning(
+        "event=database_startup_failed error_type=%s", type(error).__name__
+    )
+    st.error(
+        "Storage is unavailable. Check DATABASE_URL in deployment secrets and "
+        "the database's availability. Existing records have not been replaced."
+    )
+    if st.button("Retry database", icon=":material/refresh:"):
+        reset_engine()
+        st.rerun()
+    st.stop()
 
 if "ai_force_mock" not in st.session_state:
     st.session_state["ai_force_mock"] = False
@@ -50,8 +66,6 @@ if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
 _ai = get_ai_service(force_mock=bool(st.session_state["ai_force_mock"]))
-
-render_shell()
 
 if _ai.offline_mode:
     st.warning(
@@ -97,7 +111,7 @@ if not st.session_state["logged_in"]:
         password = st.text_input("Password", type="password")
         display_name = ""
         if mode == "Create account":
-            display_name = st.text_input("Display name (optional)")
+            display_name = st.text_input("Display name (optional)", max_chars=120)
         if st.button("Continue", type="primary"):
             with session_scope() as session:
                 if mode == "Create account":
@@ -157,6 +171,10 @@ with st.sidebar:
         acct = get_account_by_user_id(session, st.session_state["user_id"])
     account_label = acct.username if acct else "demo session"
     st.write(f"Signed in as **{account_label}**")
+    st.caption(
+        "Storage: PostgreSQL" if storage_engine.dialect.name == "postgresql"
+        else "Storage: SQLite (local file)"
+    )
     if acct:
         st.caption(f"Display name: {acct.display_name}")
     if st.button("Log out"):

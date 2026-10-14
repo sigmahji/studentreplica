@@ -6,18 +6,19 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from sqlite3 import Connection as SQLiteConnection
 from threading import RLock
-from typing import Any
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy import DDL, create_engine, event, func, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry, StaticPool
 
 from config import DATABASE_URL
+from storage.connections import connection_options, normalize_database_url
 from storage.models import Base
 from storage.sqlite_files import database_path, prepare_database_file
 
 _engines: dict[str, Engine] = {}
+_initialized_engines: set[Engine] = set()
 _engine_lock = RLock()
 
 
@@ -37,23 +38,18 @@ def _configure_sqlite(
 
 def get_engine(database_url: str | None = None) -> Engine:
     """Reuse connection pools by URL; overrides never change the default database."""
-    url = database_url or DATABASE_URL
-    path = database_path(url)
+    parsed = normalize_database_url(database_url or DATABASE_URL)
+    path = database_path(parsed.render_as_string(hide_password=False))
     if path is not None:
-        url = (
-            make_url(url)
-            .set(database=path.as_posix())
-            .render_as_string(hide_password=False)
-        )
+        parsed = parsed.set(database=path.as_posix())
+    url = parsed.render_as_string(hide_password=False)
     with _engine_lock:
         if url not in _engines:
             prepare_database_file(url)
-            options: dict[str, Any] = {"future": True, "pool_pre_ping": True}
-            if url.startswith("sqlite"):
-                options["connect_args"] = {"check_same_thread": False, "timeout": 30}
-                if path is None:
-                    options["poolclass"] = StaticPool
-            engine = create_engine(url, **options)
+            options = connection_options(parsed)
+            if parsed.get_backend_name() == "sqlite" and path is None:
+                options["poolclass"] = StaticPool
+            engine = create_engine(parsed, **options)
             if engine.dialect.name == "sqlite":
                 event.listen(engine, "connect", _configure_sqlite)
             _engines[url] = engine
@@ -68,10 +64,22 @@ def get_session_factory(database_url: str | None = None) -> sessionmaker[Session
 
 
 def init_db(database_url: str | None = None) -> Engine:
-    """Create all tables and return the engine."""
+    """Initialize once per engine; hosted student tables are backend-only."""
     with _engine_lock:
         engine = get_engine(database_url)
-        Base.metadata.create_all(bind=engine)
+        if engine not in _initialized_engines:
+            with engine.begin() as connection:
+                if engine.dialect.name == "postgresql":
+                    # Serialize first startup across app processes on the same server.
+                    connection.execute(select(func.pg_advisory_xact_lock(84161373)))
+                Base.metadata.create_all(bind=connection)
+                if engine.dialect.name == "postgresql":
+                    for table in Base.metadata.sorted_tables:
+                        connection.execute(
+                            DDL("ALTER TABLE %(fullname)s ENABLE ROW LEVEL SECURITY")
+                            .against(table)
+                        )
+            _initialized_engines.add(engine)
         return engine
 
 
@@ -96,3 +104,4 @@ def reset_engine() -> None:
         for engine in _engines.values():
             engine.dispose()
         _engines.clear()
+        _initialized_engines.clear()

@@ -10,7 +10,7 @@
 | Framework | Streamlit. `app.py` is the UI entry point. |
 | Main flow | Account gate, onboarding, twin dashboard, market matcher, CV studio, and history tabs. |
 | Modules | `modules/digital_twin.py`, `modules/market_matcher.py`, and `modules/cv_generator.py` are still the feature modules. |
-| Storage | SQLite via SQLAlchemy in `storage/`, with `UserContext` required by repository methods that touch student-owned data. |
+| Storage | Local SQLite or hosted PostgreSQL via SQLAlchemy in `storage/`, with `UserContext` required by repository methods that touch student-owned data. |
 | User identity | Accounts create a UUID `user_id`; demo sessions also create fresh UUIDs. |
 | Twin schema | Canonical in-memory dict shape in `storage/twin_schema.py`, persisted as JSON and versioned through snapshots. |
 | AI layer | `ai/` already exists with provider clients, prompt templates, Pydantic schemas, service methods, validation, cache, rate limiting, and mock fallback. |
@@ -30,7 +30,7 @@
 
 | Location | State | Assessment |
 | --- | --- | --- |
-| `storage.database` | `_engines`, `_engine_lock` | Connection pools keyed by database URL and an initialization lock only; no student payloads. Overrides cannot replace the default connection. |
+| `storage.database` | `_engines`, `_initialized_engines`, `_engine_lock` | Connection pools keyed by database URL and initialization metadata/lock only; no student payloads. Overrides cannot replace the default connection. |
 | `ai.service` | `_service_singleton` | Holds client and per-user rate-limit timestamps, not twin payloads. |
 | `AIService._rate_windows` | Recent timestamps keyed by `user_id` | Acceptable operational metadata. |
 | `MockClient.prompt_log` | Prompt payloads when enabled | Used for tests. App-created mock clients disable prompt recording to avoid process-level student payload retention. |
@@ -75,3 +75,22 @@ remain restricted. Password hashes and existing user IDs are preserved.
 - Live market URLs come only from structured provider tool results. Opening titles, skill substrings and evidence quotations are checked against retrieved text. Retrieval does not prove a posting is recent or still open; source dates and uncertainty are displayed.
 - CV exports contain selected literal twin facts. Photos are bounded, normalized, stripped of metadata and stored in private artifacts; removal is user-filtered. Photos are excluded from AI context and never written to shared export paths.
 - PDF/DOCX bytes are generated per request in memory. Synthetic visual QA uses a separate database/server and ignored output directory; no real student records are used.
+
+## 8. Cloud Backend Extension - 2026-10-14
+
+- The same Python repositories and authentication support PostgreSQL through
+  Psycopg 3 and a private `DATABASE_URL`. SQLite remains the local default.
+- Remote PostgreSQL defaults to TLS; bounded pools check stale connections and
+  disable prepared statements for transaction pooler compatibility.
+- PostgreSQL tables enable row-level security without browser policies. The
+  backend owns its tables; per-student isolation remains enforced in Python.
+- Docker Compose creates a non-superuser app role and a persistent PostgreSQL
+  volume. Administrator credentials are not passed to the app container.
+- Startup errors hide connection details and never silently redirect writes to
+  SQLite. Existing local records are not automatically migrated or merged.
+- Verified a fresh Python 3.14 dependency installation and 170 passing tests.
+  The live PostgreSQL test was skipped locally because no server is available;
+  a GitHub workflow is configured to run it against a temporary test schema.
+- No hosted database has been provisioned. Cloud activation requires a dedicated
+  PostgreSQL connection in Streamlit Secrets; local files are not durable cloud
+  storage. Backend setup, schema-change and backup guidance is in `database/README.md`.

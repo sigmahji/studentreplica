@@ -129,4 +129,5 @@ def test_onboarding_analysis_roadmap_and_check_in(
     ).click().run()
     assert not app.exception, [error.message for error in app.exception]
     assert app.session_state["logged_in"] is False
-    assert "Nursing UI Student" not in str(app.session_state.filtered_state)
+    assert "user_id" not in app.session_state
+    assert "Nursing UI Student" not in str(app.session_state)

@@ -1,0 +1,43 @@
+name: Backend Tests
+"on":
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: studentreplica_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d studentreplica_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      AI_PROVIDER: mock
+      PYTHON_DOTENV_DISABLED: "1"
+      DATABASE_URL: sqlite:///./data/ci.db
+      TEST_POSTGRES_URL: postgresql+psycopg://postgres:synthetic-ci-password@127.0.0.1:5432/studentreplica_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - run: "python -m pip install --only-binary=:all: -r requirements-dev.txt"
+      - run: python -m pip check
+      - run: python -m pytest -q

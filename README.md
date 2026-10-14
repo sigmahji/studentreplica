@@ -10,6 +10,9 @@ Its transparent background works with both appearance modes. See
 
 ## Run
 
+Use standard CPython 3.14 (not a free-threaded build) in a fresh virtual
+environment. The dependency constraints also support Python 3.11-3.13.
+
 ```powershell
 cd D:\ST_Replica\studentreplica
 python -m pip install -r requirements.txt
@@ -43,6 +46,83 @@ restart Streamlit after changing `.env`.
 
 Without working AI credentials, the app displays an offline banner and generates
 deterministic examples. Offline examples are not live AI assessments.
+
+## Streamlit Cloud AI Secrets
+
+Your local `.env` is deliberately excluded from Git, so it is not deployed to
+Streamlit Community Cloud. Set these values in **App settings > Secrets**:
+
+```toml
+AI_PROVIDER = "groq"
+AI_MODEL = "openai/gpt-oss-120b"
+GROQ_API_KEY = "replace-with-your-groq-key"
+```
+
+Use quoted TOML strings, not `.env` syntax, and put these entries at the top
+level before any `[section]`. An `[ai]` section is also supported. Environment
+variables (including local `.env` values) take precedence over nested secrets;
+explicit provider selection is respected. Without `AI_PROVIDER`, a lone Groq
+key automatically selects Groq. Anthropic remains the default when its key is
+available and no provider is selected.
+
+Save the Cloud secrets and reboot the app so its imported configuration and
+AI client reload. Keep **Force mock AI** unchecked, then refresh any saved
+offline example with **Analyze / refresh career plan**. Do not commit API keys
+to GitHub. See [Streamlit's secrets setup](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management)
+and the safe [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example).
+
+## Docker
+
+Install Docker with Linux container support. From the repository root, run:
+
+```powershell
+docker build -t studentreplica .
+docker run -d --name studentreplica --restart unless-stopped --env-file .env -p 127.0.0.1:8502:8501 --mount type=volume,source=studentreplica-db,target=/app/database studentreplica
+```
+
+Open [StudentReplica](http://localhost:8502). Host port 8502 avoids the usual
+local Streamlit port 8501. Check startup and container health with:
+
+```powershell
+docker logs studentreplica
+docker inspect --format '{{.State.Health.Status}}' studentreplica
+```
+
+The image uses Python 3.14, dependencies from `requirements.txt`, `zlib1g-dev`, and
+DejaVu fonts for PDF CVs. It runs Streamlit as a non-root user on port 8501,
+with the official Streamlit health endpoint. See the
+[Streamlit Docker guide](https://docs.streamlit.io/deploy/tutorials/docker).
+
+The `.dockerignore` excludes API keys, Streamlit secrets, local databases,
+backups and private data. Supply the existing ignored `.env` at runtime using
+`--env-file`; do not put credentials in the Dockerfile. Without a local `.env`,
+omit that argument to run with offline examples. Recreate the container after
+changing credentials; restarting it does not reload `--env-file`.
+
+Accounts and student records persist in the named `studentreplica-db` volume,
+including SQLite WAL files and database backups. The container starts with a
+new database; it does not import or modify your existing local database.
+Keep the named volume when replacing containers and do not delete it without
+a verified backup. Use a single app container with this SQLite volume. The
+example binds to localhost; public hosting needs HTTPS and an appropriate
+reverse proxy. Streamlit Community Cloud uses its own deployment process,
+not this Dockerfile.
+
+### Python 3.14 Compatibility
+
+Python 3.14 was verified with Streamlit 1.55.0, Pydantic 2.12.5, Pillow 12.3.0,
+SQLAlchemy 2.0.54 and pandas 2.3.3, including compatible binary wheels. The
+requirements use minimum versions, so fresh installs may select newer releases.
+See the [Streamlit release notes](https://docs.streamlit.io/develop/quick-reference/release-notes/2026),
+[Pydantic 2.12 announcement](https://pydantic.dev/articles/pydantic-v2-12-release),
+and [pandas 2.3.3 release notes](https://pandas.pydata.org/docs/whatsnew/v2.3.3.html).
+
+The Docker build requires binary wheels (`--only-binary=:all:`), so missing
+compatible packages fail clearly instead of attempting a Rust or C source
+build. No `PYO3_USE_ABI3_FORWARD_COMPATIBILITY` workaround is needed for these
+Pydantic wheels. Remove that workaround from deployment secrets if previously
+added. For Streamlit Community Cloud, select Python 3.14 in deployment settings
+if the platform offers it; the Dockerfile does not set Cloud's Python version.
 
 ## Local Market Research
 
@@ -81,6 +161,16 @@ fields. These are learning references, not advertised vacancies or real employer
 Custom and interdisciplinary fields are also supported by the AI planner.
 
 ## Student Workflow
+
+The first signed-in visit opens an eight-step guided tour through the actual
+workspace tabs, beginning with Profile. Back/Next, Skip tour and completion are
+saved per account, including across logins and devices. **Quick tour** in the
+sidebar reopens it at any time. Skipping or finishing opens Profile; demo
+sessions can start the tour manually. Tour navigation never changes academic
+progress, twin versions, assessment results or AI request usage.
+The tour requires Streamlit 1.55 or later for its native
+[stateful tab navigation](https://docs.streamlit.io/1.55.0/develop/api-reference/layout/st.tabs).
+Update the requirements before running this version of the app.
 
 The sidebar includes **Light** and **Dark** appearance modes. The dashboard opens
 first, with hoverable progress charts for completed milestones, skills and academic
@@ -180,7 +270,7 @@ guidance appropriate to their study level.
 ```text
 Streamlit app.py
   -> UserContext(user_id)
-  -> TwinRepository -> SQLite: account, twin, snapshots, chat, cache, artifacts
+  -> TwinRepository -> SQLite/PostgreSQL: account, twin, snapshots, chat, cache, artifacts
   -> AIService -> delimited prompts -> configured LLM -> JSON/Pydantic validation
                -> one repair attempt -> transparent offline fallback
   -> Career planner -> field/skill references -> local market evidence
@@ -198,7 +288,15 @@ private quiz keys and photos use the existing user-filtered artifact store.
 
 ## Database And Accounts
 
-The persistent database is `database/studentreplica.db`, using Python's built-in
+The `storage/` package is the Python backend. It supports local SQLite and
+persistent hosted PostgreSQL through the same user-isolated repository. For
+Streamlit Cloud, configure a private `DATABASE_URL` in Secrets; local files are
+not durable cloud storage. See [backend setup and development](database/README.md)
+for cloud secrets, Docker Compose, security, backups and where to change backend
+code. Existing SQLite data is retained and is never automatically merged into
+a new backend. The app shows the active storage type after sign-in.
+
+The default local database is `database/studentreplica.db`, using Python's built-in
 SQLite engine through SQLAlchemy. No database server is needed. On first startup,
 the previous `data/student_twin.db` is copied and integrity-checked automatically;
 the original is retained. Existing accounts and all student records are preserved.
@@ -230,6 +328,7 @@ self-reported work are retained separately from new assessment evidence.
 ## Verify
 
 ```powershell
+python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
@@ -247,3 +346,9 @@ image validation, PDF pagination, DOCX structure and the course-to-quiz UI.
 Optional visual QA uses `tests/manual_browser_check.py` with Playwright, Edge
 and pypdfium2 against a separate mock-only server on port 8510. Its synthetic
 files go to ignored `data/qa_output/`, not into a student's records.
+
+Tour-specific browser QA is in `tests/manual_tour_check.py`. It uses Playwright
+and Edge against a separate mock-only server on port 8512 with a dedicated
+`data/qa_tour.db`, checking real signup, selected tabs, drafts, both themes,
+mobile layouts, completion, re-login and account isolation. It refuses the
+main app's port 8501; screenshots stay in ignored `data/qa_output/tour/`.

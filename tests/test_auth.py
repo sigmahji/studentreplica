@@ -30,6 +30,22 @@ def test_duplicate_username_rejected(open_session) -> None:
         assert not b.ok
 
 
+def test_display_name_limit_is_checked_before_database_insert(open_session) -> None:
+    with open_session() as session:
+        invalid = create_account(
+            session, username="long_display", password="secret12", display_name="a" * 121
+        )
+        assert not invalid.ok
+        assert "120" in invalid.message
+        valid = create_account(
+            session, username="long_display", password="secret12", display_name="a" * 120
+        )
+        assert valid.ok
+    with open_session() as session:
+        account = get_account_by_user_id(session, valid.user_id)
+    assert account is not None and len(account.display_name) == 120
+
+
 def test_account_metadata_usable_after_sign_in_session_closes(open_session) -> None:
     with open_session() as session:
         created = create_account(

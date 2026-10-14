@@ -61,6 +61,9 @@ def create_account(
         return AuthResult(False, None, None, "Username must be at most 64 characters.")
     if len(password) < 6:
         return AuthResult(False, None, None, "Password must be at least 6 characters.")
+    name = (display_name or uname).strip()
+    if len(name) > 120:
+        return AuthResult(False, None, None, "Display name must be at most 120 characters.")
 
     existing = session.scalars(select(Account).where(Account.username == uname)).first()
     if existing is not None:
@@ -73,7 +76,7 @@ def create_account(
         username=uname,
         password_hash=_hash_password(password, salt),
         salt=salt,
-        display_name=(display_name or uname).strip(),
+        display_name=name,
         created_at=datetime.now(timezone.utc),
     )
     try:

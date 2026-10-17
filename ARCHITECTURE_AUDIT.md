@@ -94,3 +94,26 @@ remain restricted. Password hashes and existing user IDs are preserved.
 - No hosted database has been provisioned. Cloud activation requires a dedicated
   PostgreSQL connection in Streamlit Secrets; local files are not durable cloud
   storage. Backend setup, schema-change and backup guidance is in `database/README.md`.
+
+## 9. Google Sign-In - 2026-10-17
+
+- The existing password and demo flows are retained alongside native Streamlit
+  Google OIDC. `modules/google_auth.py` handles readiness, verified identity
+  restoration before widget rendering, and native cookie logout.
+- `external_identities` adds a unique provider/subject-digest mapping to an
+  account UUID, with an account foreign key. Existing accounts, password hashes
+  and twin records are not rewritten. PostgreSQL's existing setup also enables
+  backend-only row-level security on this table.
+- Only Streamlit-verified server identity claims are used. Authlib handles token
+  signatures, audience, state and nonce; application checks reject non-Google,
+  unverified or expired identities. Names/email addresses are never account keys.
+- First Google sign-in creates an independent private account and starts the
+  existing tour. No automatic linking or merging with password accounts occurs.
+  Raw Google subjects, email addresses and tokens are not stored in app tables
+  or passed to AI; identity changes clear the previous student's form state.
+- The local database was consistently backed up before the additive upgrade;
+  existing table counts were unchanged and integrity/foreign-key checks passed.
+- Verification: 203 tests pass; two real PostgreSQL tests are skipped without
+  a test server. Browser checks passed for light/dark desktop/mobile login views.
+- Google OAuth client credentials are not configured locally. Live consent and
+  callback success remain an external acceptance step in `GOOGLE_SIGN_IN.md`.

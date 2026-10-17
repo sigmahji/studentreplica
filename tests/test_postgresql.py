@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from uuid import uuid4
 
 import pytest
@@ -12,7 +13,7 @@ from sqlalchemy.schema import CreateSchema, DropSchema
 
 from ai.client import MockClient
 from ai.service import AIService
-from storage.auth import create_account, login_account
+from storage.auth import create_account, login_account, login_google_account
 from storage.connections import normalize_database_url
 from storage.context import UserContext
 from storage.database import get_engine, init_db, reset_engine, session_scope
@@ -98,3 +99,34 @@ def test_postgresql_full_pipeline_persists_accounts_and_never_mixes_students(
     assert report["row_counts"]["accounts"] == 2
     assert "synthetic-password" not in str(report)
     assert "POSTGRES_PRIVATE_STUDENT" not in str(report)
+
+
+def test_postgresql_google_subject_mapping_survives_restart(postgres_database) -> None:
+    """Verify the new mapping/foreign key on the real deployment database engine."""
+    users = []
+    for suffix in ("a", "b"):
+        claims = {
+            "iss": "https://accounts.google.com", "sub": f"synthetic-google-{suffix}",
+            "email_verified": True, "email": "same@example.test",
+            "name": "Synthetic Google Student", "exp": int(time.time()) + 3600,
+        }
+        with session_scope(postgres_database) as session:
+            account = login_google_account(session, claims)
+            assert account.ok
+            users.append((claims, account.user_id))
+            TwinRepository(session).save_twin(
+                UserContext(user_id=account.user_id),
+                {"profile": {"name": f"PRIVATE_GOOGLE_{suffix}"}},
+            )
+    assert users[0][1] != users[1][1]
+    reset_engine()
+    init_db(postgres_database)
+    with session_scope(postgres_database) as session:
+        for claims, user_id in users:
+            assert login_google_account(session, claims).user_id == user_id
+            records = TwinRepository(session).get_twin(UserContext(user_id=user_id))
+            other = "b" if claims["sub"].endswith("a") else "a"
+            assert f"PRIVATE_GOOGLE_{other}" not in json.dumps(records)
+    report = check_database(postgres_database)
+    assert report["row_counts"]["accounts"] == 2
+    assert report["row_counts"]["external_identities"] == 2

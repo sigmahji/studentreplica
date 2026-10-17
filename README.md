@@ -71,6 +71,15 @@ offline example with **Analyze / refresh career plan**. Do not commit API keys
 to GitHub. See [Streamlit's secrets setup](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/secrets-management)
 and the safe [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example).
 
+## Continue With Google
+
+The sign-in screen supports Google through Streamlit's native OIDC flow. Configure
+your Google OAuth web client and private `[auth]` / `[auth.google]` secrets using
+the [Google sign-in setup guide](GOOGLE_SIGN_IN.md). The button stays disabled
+until configuration is complete; username/password and demo login still work.
+Google identities get isolated accounts and the existing first-visit tour.
+Existing username accounts are never automatically linked or merged by email.
+
 ## Docker
 
 Install Docker with Linux container support. From the repository root, run:
@@ -270,6 +279,7 @@ guidance appropriate to their study level.
 ```text
 Streamlit app.py
   -> UserContext(user_id)
+  -> Password auth / Streamlit Google OIDC -> private account UUID
   -> TwinRepository -> SQLite/PostgreSQL: account, twin, snapshots, chat, cache, artifacts
   -> AIService -> delimited prompts -> configured LLM -> JSON/Pydantic validation
                -> one repair attempt -> transparent offline fallback

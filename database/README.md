@@ -15,7 +15,8 @@ SQLite is not encrypted at rest. Passwords are salted PBKDF2 hashes, never plain
 
 | Table | Stored data | Isolation key |
 | --- | --- | --- |
-| `accounts` | Unique username, salted password hash, display name | `user_id` primary key |
+| `accounts` | Unique username, hashed local password or disabled Google-only marker, display name | `user_id` primary key |
+| `external_identities` | Google subject digest mapped to an account, no raw tokens/email | Unique provider/subject digest, indexed `user_id` foreign key |
 | `twins` | Profile, skills, semesters, grades, courses, goals and progress | `user_id` primary key |
 | `twin_snapshots` | Versioned history of that student's twin | Non-null indexed `user_id` |
 | `chat_messages` | Private coach conversation | Non-null indexed `user_id` |
@@ -81,7 +82,7 @@ url = "postgresql+psycopg://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
 
 Keep database credentials out of Git and chat. URL-encode special characters in
 the password when using a URL; use the provider's generated connection string.
-Reboot the app after changing secrets. The application creates its six tables
+Reboot the app after changing secrets. The application creates its tables
 in the configured database and the sidebar identifies the active storage type.
 Use a dedicated schema/database owned by the configured backend role, with
 permission to create tables and enable row-level security. Verify the sidebar
@@ -134,6 +135,7 @@ administrator database connection.
   by `create_all`; schema changes require an explicit, reviewed data migration.
 - `storage/repository.py`: user-filtered reads/writes; require `UserContext`.
 - `storage/auth.py`: registration, password hashing and sign-in.
+- `modules/google_auth.py`: native Google login, verified identity restoration and logout.
 - `storage/database.py` / `storage/connections.py`: pools, transactions and setup.
 - `storage/twin_schema.py`: the versioned JSON profile/academic/learning model.
 - `storage/manage.py`: setup, health checks and local SQLite backups.

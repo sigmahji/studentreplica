@@ -31,6 +31,7 @@ from modules.learning_ui import render_learning
 from modules.market_ui import render_market
 from modules.cv_ui import render_cv_studio
 from modules.onboarding_tour import render_guided_tour
+from modules.google_auth import logout_current_session, render_google_login, sync_google_login
 from storage.auth import create_account, get_account_by_user_id, login_account
 from storage.context import UserContext
 from storage.database import init_db, reset_engine, session_scope
@@ -44,10 +45,10 @@ st.set_page_config(
     ),
     layout="wide",
 )
-render_shell()
 try:
     storage_engine = init_db()
 except (SQLAlchemyError, OSError, ValueError, RuntimeError, ImportError) as error:
+    render_shell()
     logging.getLogger("student_twin.storage").warning(
         "event=database_startup_failed error_type=%s", type(error).__name__
     )
@@ -64,6 +65,9 @@ if "ai_force_mock" not in st.session_state:
     st.session_state["ai_force_mock"] = False
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
+
+sync_google_login()
+render_shell()
 
 _ai = get_ai_service(force_mock=bool(st.session_state["ai_force_mock"]))
 
@@ -106,6 +110,7 @@ if not st.session_state["logged_in"]:
     auth_tab, demo_tab = st.tabs(["Create / Login", "Quick demo (no password)"])
 
     with auth_tab:
+        render_google_login()
         mode = st.radio("I want to", ["Create account", "Log in"], horizontal=True)
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
@@ -169,22 +174,20 @@ with st.sidebar:
     st.markdown("### Account")
     with session_scope() as session:
         acct = get_account_by_user_id(session, st.session_state["user_id"])
-    account_label = acct.username if acct else "demo session"
+    google_account = st.session_state.get("auth_provider") == "google"
+    account_label = (
+        acct.display_name if acct and google_account
+        else acct.username if acct else "demo session"
+    )
     st.write(f"Signed in as **{account_label}**")
     st.caption(
         "Storage: PostgreSQL" if storage_engine.dialect.name == "postgresql"
         else "Storage: SQLite (local file)"
     )
-    if acct:
+    if acct and not google_account:
         st.caption(f"Display name: {acct.display_name}")
     if st.button("Log out"):
-        force_mock = st.session_state.get("ai_force_mock", False)
-        theme = st.session_state.get("ui_theme", "Light")
-        st.session_state.clear()
-        st.session_state["ai_force_mock"] = force_mock
-        st.session_state["ui_theme"] = theme
-        st.session_state["logged_in"] = False
-        st.rerun()
+        logout_current_session()
 
     st.markdown("---")
     st.markdown("### AI")

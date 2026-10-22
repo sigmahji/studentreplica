@@ -18,24 +18,24 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 def _setting(name: str, default: str = "") -> str:
     """Read configuration without exposing credentials or requiring a secrets file."""
     value = os.getenv(name)
-    if value is None:
+    if not value:
         try:
             import streamlit as st
 
             value = st.secrets.get(name)
-            if value is None:
+            if not value:
                 sections = ("database", "ai") if name == "DATABASE_URL" else ("ai",)
                 for section_name in sections:
                     section = st.secrets.get(section_name, {})
                     if isinstance(section, Mapping):
                         value = section.get(name)
-                        if value is None and name == "DATABASE_URL":
+                        if not value and name == "DATABASE_URL":
                             value = section.get("url")
-                    if value is not None:
+                    if value:
                         break
         except (FileNotFoundError, KeyError):
             value = None
-    return str(value).strip() if value is not None else default
+    return str(value).strip() if value else default
 
 
 # Local SQLite by default; DATABASE_URL selects a hosted PostgreSQL backend.

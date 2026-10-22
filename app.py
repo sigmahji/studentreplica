@@ -107,11 +107,24 @@ def _latest_artifact_payload(kind: str) -> dict | None:
 if not st.session_state["logged_in"]:
     st.markdown("### Welcome — create an account or sign in")
     st.caption("Each account gets a private digital twin. Student data never mixes.")
+    if storage_engine.dialect.name == "postgresql":
+        st.caption("Storage backend: **PostgreSQL (Supabase)**")
+    else:
+        st.caption(
+            "Storage backend: **SQLite (local/ephemeral)** — on cloud deployments, configure DATABASE_URL in secrets."
+        )
     auth_tab, demo_tab = st.tabs(["Create / Login", "Quick demo (no password)"])
 
     with auth_tab:
         render_google_login()
-        mode = st.radio("I want to", ["Create account", "Log in"], horizontal=True)
+        auth_mode = st.session_state.get("auth_mode", "Create account")
+        mode = st.radio(
+            "I want to",
+            ["Create account", "Log in"],
+            index=1 if auth_mode == "Log in" else 0,
+            horizontal=True,
+        )
+        st.session_state["auth_mode"] = mode
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         display_name = ""
@@ -133,10 +146,25 @@ if not st.session_state["logged_in"]:
             if result.ok and result.user_id:
                 st.session_state["logged_in"] = True
                 st.session_state["user_id"] = result.user_id
+                st.session_state["auth_mode"] = "Log in"
                 st.success(result.message)
                 st.rerun()
             else:
-                st.error(result.message)
+                if mode == "Create account" and "already taken" in result.message.lower():
+                    st.error(
+                        f"**{result.message}** If this is your existing account, "
+                        "select **'Log in'** above to sign in with your password."
+                    )
+                    if st.button("Switch to 'Log in'", icon=":material/login:"):
+                        st.session_state["auth_mode"] = "Log in"
+                        st.rerun()
+                elif mode == "Log in" and "invalid" in result.message.lower():
+                    st.error(
+                        f"**{result.message}** If you haven't created an account yet, "
+                        "select **'Create account'** above to register."
+                    )
+                else:
+                    st.error(result.message)
 
     with demo_tab:
         st.write("Load a demo twin under a temporary isolated session (for judges).")

@@ -79,6 +79,7 @@ def clear_login_state() -> None:
     st.session_state["ai_force_mock"] = force_mock
     st.session_state["ui_theme"] = theme
     st.session_state["logged_in"] = False
+    st.session_state["auth_mode"] = "Log in"
 
 
 def logout_current_session() -> None:

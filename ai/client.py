@@ -189,7 +189,14 @@ class OpenAIClient(LLMClient):
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": system},
+                {
+                    "role": "system",
+                    "content": (
+                        system
+                        if "json" in (system + user).lower()
+                        else f"{system}\nRespond with JSON."
+                    ),
+                },
                 {"role": "user", "content": user},
             ],
         )

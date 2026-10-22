@@ -6,8 +6,6 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
-from ai.client import MockClient
-from ai.service import AIService
 from storage.repository import TwinRepository
 from storage.twin_schema import empty_twin
 

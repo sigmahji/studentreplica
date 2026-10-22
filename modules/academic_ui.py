@@ -152,7 +152,7 @@ def render_academics(ctx: UserContext, ai: AIService) -> None:
         with st.expander(
             f"Semester {semester['number']} | {semester['status'].title()}"
         ):
-            st.dataframe(semester["courses"], hide_index=True, use_container_width=True)
+            st.dataframe(semester["courses"], hide_index=True, width="stretch")
     if academic.get("legacy_courses"):
         with st.expander("Earlier records awaiting semester assignment"):
             st.dataframe(academic["legacy_courses"], hide_index=True)

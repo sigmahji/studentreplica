@@ -122,7 +122,7 @@ def render_progress_chart(snapshots: list[dict[str, Any]], *, key: str) -> None:
         return
     st.plotly_chart(
         progress_figure(points, metric, current_colors()),
-        use_container_width=True,
+        width="stretch",
         config={"displayModeBar": False},
         key=f"{key}_chart",
     )
@@ -167,7 +167,7 @@ def _render_radar(twin: dict[str, Any]) -> None:
     )
     st.plotly_chart(
         fig,
-        use_container_width=True,
+        width="stretch",
         config={"displayModeBar": False},
         key="dashboard_radar",
     )

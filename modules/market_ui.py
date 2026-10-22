@@ -165,7 +165,7 @@ def render_market(ctx: UserContext, ai: AIService) -> dict | None:
     search_columns = st.columns(2)
     for column, (label, url) in zip(search_columns, job_search_links(profile)):
         column.link_button(
-            label, url, icon=":material/open_in_new:", use_container_width=True
+            label, url, icon=":material/open_in_new:", width="stretch"
         )
     if payload and payload.get("jobs"):
         live_tab, roles_tab = st.tabs(["Source-backed openings", "Role matches"])

@@ -225,7 +225,7 @@ def _render_roadmap(
                 st.write(f"Completion evidence: {task['evidence_required']}")
                 st.caption(task["resource"])
     if payload["schedule"]:
-        st.dataframe(payload["schedule"], hide_index=True, use_container_width=True)
+        st.dataframe(payload["schedule"], hide_index=True, width="stretch")
     else:
         st.info(
             "No free study slots are available. Update availability in Profile when you have time."
@@ -235,7 +235,7 @@ def _render_roadmap(
             "Some work does not fit your available time or graduation deadline. Your commitments have been preserved."
         )
         st.dataframe(
-            payload["deferred_tasks"], hide_index=True, use_container_width=True
+            payload["deferred_tasks"], hide_index=True, width="stretch"
         )
     active_id = twin.get("active_plan", {}).get("plan_id")
     stale = payload["twin_version"] != twin.get("meta", {}).get("twin_version")
@@ -272,7 +272,7 @@ def _render_progress(ctx: UserContext, twin: dict[str, Any]) -> None:
         f"{summary['completed_tasks']} of {summary['total_tasks']} tasks completed"
     )
     if plan["schedule"]:
-        st.dataframe(plan["schedule"], hide_index=True, use_container_width=True)
+        st.dataframe(plan["schedule"], hide_index=True, width="stretch")
     completed = {
         e["task_id"]
         for e in twin.get("progress_events", [])
@@ -306,7 +306,7 @@ def _render_progress(ctx: UserContext, twin: dict[str, Any]) -> None:
     if twin.get("progress_events"):
         with st.expander("Completed milestones"):
             st.dataframe(
-                twin["progress_events"], hide_index=True, use_container_width=True
+                twin["progress_events"], hide_index=True, width="stretch"
             )
 
 

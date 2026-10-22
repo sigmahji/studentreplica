@@ -1,0 +1,12 @@
+# Netlify configuration for StudentReplica
+# Netlify serves the public landing portal, which links to the active Streamlit app.
+
+[build]
+  publish = "public"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

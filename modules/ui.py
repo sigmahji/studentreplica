@@ -20,7 +20,7 @@ def theme_colors(mode: str) -> dict[str, str]:
             "sidebar": "#2b3035",
             "text": "#edf2f4",
             "muted": "#bac5cb",
-            "border": "#4b555f",
+            "border": "#6a7d92",
             "accent": "#61d5bf",
             "accent_soft": "#304b46",
             "coral": "#f4a094",

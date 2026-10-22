@@ -145,4 +145,27 @@ Real PostgreSQL isolation tests
 run in `.github/workflows/backend-tests.yml` using synthetic students and a
 temporary schema. Locally, set `TEST_POSTGRES_URL` to a **dedicated test database**
 to enable them. Never use production credentials for test runs. Without that
-setting the PostgreSQL integration test is explicitly skipped.
+Setting the PostgreSQL integration test is explicitly skipped.
+
+## Supabase PostgreSQL Configuration
+
+For Supabase project `ixoxcwaharigczkhpexv`:
+
+1. **Schema DDL:**
+   Run the generated [`database/supabase_schema.sql`](./supabase_schema.sql) in the **Supabase Dashboard > SQL Editor** to create all tables and enable Row-Level Security.
+
+2. **Environment Configuration (`.env` or Streamlit Secrets):**
+   ```toml
+   DATABASE_URL = "postgresql+psycopg://postgres:[YOUR-SUPABASE-PASSWORD]@db.ixoxcwaharigczkhpexv.supabase.co:5432/postgres?sslmode=require"
+   ```
+
+3. **Migrate Local Data (Optional):**
+   To copy your existing local SQLite data into Supabase:
+   ```powershell
+   python storage/migrate_sqlite_to_postgres.py --dest "postgresql+psycopg://postgres:[YOUR-SUPABASE-PASSWORD]@db.ixoxcwaharigczkhpexv.supabase.co:5432/postgres?sslmode=require"
+   ```
+
+4. **Verify Backend Health:**
+   ```powershell
+   python -m storage.manage check
+   ```

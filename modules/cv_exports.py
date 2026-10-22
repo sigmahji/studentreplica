@@ -150,7 +150,10 @@ def export_docx(twin: dict, facts: list[dict], photo: bytes | None = None) -> by
     section.left_margin = section.right_margin = Inches(0.75)
     normal = document.styles["Normal"]
     normal.font.name, normal.font.size = "Calibri", Pt(10)
-    normal.paragraph_format.space_after = Pt(6)
+    normal.paragraph_format.space_after = Pt(5)
+    profile = twin.get("profile", {})
+    name = profile.get("name") or "Student"
+
     if photo:
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
@@ -160,28 +163,45 @@ def export_docx(twin: dict, facts: list[dict], photo: bytes | None = None) -> by
         header.columns[0].width, header.columns[1].width = Inches(5.5), Inches(1)
         title = header.cell(0, 0).paragraphs[0]
         title.style = "Title"
-        title.add_run(twin["profile"].get("name") or "Student")
+        title.add_run(name)
         portrait = header.cell(0, 1).paragraphs[0]
         portrait.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         portrait.add_run().add_picture(BytesIO(photo), width=Inches(0.85))
         for cell in header.rows[0].cells:
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
     else:
-        title = document.add_paragraph(
-            twin["profile"].get("name") or "Student", "Title"
-        )
-    title.runs[0].font.color.rgb = RGBColor(0, 0, 0)
-    title.runs[0].font.size = Pt(26)
-    profile = twin["profile"]
-    document.add_paragraph(
-        ", ".join(
-            str(profile.get(k) or "") for k in ("city", "country") if profile.get(k)
-        )
-    )
+        title = document.add_paragraph(name, "Title")
+
+    title.runs[0].font.color.rgb = RGBColor(15, 118, 110)
+    title.runs[0].font.size = Pt(24)
+    title.runs[0].font.bold = True
+
+    sub_parts = [
+        str(profile.get(k) or "")
+        for k in ("degree", "institution")
+        if profile.get(k)
+    ]
+    if sub_parts:
+        sub_p = document.add_paragraph(" • ".join(sub_parts))
+        sub_p.runs[0].font.size = Pt(10.5)
+        sub_p.runs[0].font.color.rgb = RGBColor(71, 85, 105)
+        sub_p.runs[0].font.bold = True
+
+    loc_parts = [
+        str(profile.get(k) or "")
+        for k in ("city", "country")
+        if profile.get(k)
+    ]
+    if loc_parts:
+        loc_p = document.add_paragraph(", ".join(loc_parts))
+        loc_p.runs[0].font.size = Pt(9.5)
+        loc_p.runs[0].font.color.rgb = RGBColor(100, 116, 139)
+
     for heading in dict.fromkeys(f["section"] for f in facts):
-        paragraph = document.add_paragraph(heading, "Heading 1")
-        paragraph.runs[0].font.size = Pt(12)
-        paragraph.runs[0].font.color.rgb = RGBColor.from_string("117367")
+        paragraph = document.add_paragraph(heading.upper(), "Heading 1")
+        paragraph.runs[0].font.size = Pt(11.5)
+        paragraph.runs[0].font.bold = True
+        paragraph.runs[0].font.color.rgb = RGBColor(15, 118, 110)
         for fact in (f for f in facts if f["section"] == heading):
             paragraph = document.add_paragraph(fact["text"], "List Bullet")
             if fact.get("url"):
@@ -198,6 +218,7 @@ def export_docx(twin: dict, facts: list[dict], photo: bytes | None = None) -> by
                 run.append(text)
                 link.append(run)
                 paragraph._p.append(link)
+
     # Word templates may inherit a title rule; keep this CV free of theme borders.
     for root in (document.element, document.styles.element):
         for border in list(root.iter(qn("w:pBdr"))):
@@ -208,11 +229,11 @@ def export_docx(twin: dict, facts: list[dict], photo: bytes | None = None) -> by
 
 
 def export_pdf(twin: dict, facts: list[dict], photo: bytes | None = None) -> bytes:
-    """Render a paginated CV with wrapping, section hierarchy and clickable links."""
+    """Render a paginated CV with graphical styling, section hierarchy and clickable links."""
     from reportlab.lib import colors
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, HRFlowable
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
@@ -226,72 +247,136 @@ def export_pdf(twin: dict, facts: list[dict], photo: bytes | None = None) -> byt
             if font not in pdfmetrics.getRegisteredFontNames():
                 pdfmetrics.registerFont(TTFont(font, str(path)))
             break
-    body = ParagraphStyle(
-        "Body",
-        fontName=font,
-        fontSize=10,
-        leading=14,
-        spaceAfter=6,
-        splitLongWords=True,
-    )
-    heading = ParagraphStyle(
-        "Section",
-        parent=body,
-        fontSize=12,
-        leading=16,
-        textColor=colors.HexColor("#117367"),
-        spaceBefore=14,
-        spaceAfter=7,
-        keepWithNext=True,
-    )
-    title = ParagraphStyle("Name", parent=body, fontSize=25, leading=30, spaceAfter=8)
+
     output = BytesIO()
     document = SimpleDocTemplate(
         output,
         pagesize=A4,
         rightMargin=48,
         leftMargin=48,
-        topMargin=42,
-        bottomMargin=42,
+        topMargin=40,
+        bottomMargin=40,
         title="Curriculum Vitae",
-        author="",
+        author=twin.get("profile", {}).get("name", "Student"),
     )
-    name = Paragraph(escape(twin["profile"].get("name") or "Student"), title)
+    body = ParagraphStyle(
+        "Body",
+        fontName=font,
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#334155"),
+        spaceAfter=5,
+        splitLongWords=True,
+    )
+    heading = ParagraphStyle(
+        "SectionHeading",
+        parent=body,
+        fontSize=11,
+        leading=14,
+        fontName=f"{font}-Bold" if font == "Helvetica" else font,
+        textColor=colors.HexColor("#0f766e"),
+        spaceBefore=0,
+        spaceAfter=0,
+    )
+    title = ParagraphStyle(
+        "Name",
+        parent=body,
+        fontSize=24,
+        leading=28,
+        fontName=f"{font}-Bold" if font == "Helvetica" else font,
+        textColor=colors.HexColor("#0f766e"),
+        spaceAfter=3,
+    )
+    subtitle = ParagraphStyle(
+        "Subtitle",
+        parent=body,
+        fontSize=10.5,
+        leading=14,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=3,
+    )
+    contact_style = ParagraphStyle(
+        "Contact",
+        parent=body,
+        fontSize=9,
+        leading=13,
+        textColor=colors.HexColor("#64748b"),
+        spaceAfter=0,
+    )
+
+    profile = twin.get("profile", {})
+    name_p = Paragraph(escape(profile.get("name") or "Student"), title)
+
+    sub_parts = [
+        str(profile.get(k) or "")
+        for k in ("degree", "institution")
+        if profile.get(k)
+    ]
+    sub_p = Paragraph(escape(" • ".join(sub_parts)), subtitle) if sub_parts else None
+
+    loc_parts = [
+        str(profile.get(k) or "")
+        for k in ("city", "country")
+        if profile.get(k)
+    ]
+    loc_p = Paragraph(escape(", ".join(loc_parts)), contact_style) if loc_parts else None
+
+    header_cells = [p for p in (name_p, sub_p, loc_p) if p is not None]
+
     story = []
     if photo:
         image = Image(BytesIO(photo))
-        ratio = min(62 / image.imageWidth, 72 / image.imageHeight)
+        ratio = min(68 / image.imageWidth, 76 / image.imageHeight)
         image.drawWidth, image.drawHeight = (
             image.imageWidth * ratio,
             image.imageHeight * ratio,
         )
-        table = Table([[name, image]], colWidths=[document.width - 80, 80])
-        table.setStyle(
-            [("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]
+        hdr_table = Table([[header_cells, image]], colWidths=[document.width - 80, 80])
+        hdr_table.setStyle(
+            TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ])
         )
-        story.append(table)
+        story.append(hdr_table)
     else:
-        story.append(name)
-    profile = twin["profile"]
+        for cell in header_cells:
+            story.append(cell)
+
     story.append(
-        Paragraph(
-            escape(
-                ", ".join(
-                    str(profile.get(k) or "")
-                    for k in ("city", "country")
-                    if profile.get(k)
-                )
-            ),
-            body,
+        HRFlowable(
+            width="100%",
+            thickness=1.5,
+            color=colors.HexColor("#0f766e"),
+            spaceBefore=6,
+            spaceAfter=12,
         )
     )
-    story.append(Spacer(1, 4))
+
     for section in dict.fromkeys(f["section"] for f in facts):
-        story.append(Paragraph(escape(section), heading))
+        sec_label = Paragraph(f"<b>{escape(section.upper())}</b>", heading)
+        sec_table = Table([[sec_label]], colWidths=[document.width])
+        sec_table.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f0fdfa")),
+                ("LINELEFT", (0, 0), (0, -1), 3.5, colors.HexColor("#0f766e")),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ])
+        )
+        story.append(sec_table)
+        story.append(Spacer(1, 4))
         for fact in (f for f in facts if f["section"] == section):
             text = escape(fact["text"])
             if fact.get("url"):
-                text += f' <link href="{escape(fact["url"], {chr(34): "&quot;"})}" color="#117367">Course evidence</link>'
+                text += f' <link href="{escape(fact["url"], {chr(34): "&quot;"})}" color="#0f766e">Course evidence</link>'
             story.append(Paragraph(text, body, bulletText="-"))
+        story.append(Spacer(1, 6))
+
     document.build(story)
     return output.getvalue()

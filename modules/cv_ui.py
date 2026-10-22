@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from html import escape
 
 import streamlit as st
 
@@ -17,6 +18,98 @@ from modules.cv_exports import (
 from storage.context import UserContext
 from storage.database import session_scope
 from storage.repository import TwinRepository
+
+
+def render_professional_cv_preview(
+    twin: dict, facts: list[dict], photo: bytes | None = None
+) -> None:
+    """Render an executive paper sheet preview with layout graphics, badges and evidence."""
+    profile = twin.get("profile", {})
+    name = escape(str(profile.get("name") or "Student"))
+    degree = escape(str(profile.get("degree") or ""))
+    institution = escape(str(profile.get("institution") or ""))
+    city = escape(str(profile.get("city") or ""))
+    country = escape(str(profile.get("country") or ""))
+    grad = escape(str(profile.get("graduation_date") or ""))
+
+    pills_html: list[str] = []
+    if city or country:
+        loc = ", ".join(filter(None, [city, country]))
+        pills_html.append(f'<span class="cv-header-pill">📍 {loc}</span>')
+    if degree:
+        pills_html.append(f'<span class="cv-header-pill">🎓 {degree}</span>')
+    if institution:
+        pills_html.append(f'<span class="cv-header-pill">🏛️ {institution}</span>')
+    if grad:
+        pills_html.append(f'<span class="cv-header-pill">📅 Class of {grad}</span>')
+
+    photo_html = ""
+    if photo:
+        b64_img = base64.b64encode(photo).decode("ascii")
+        photo_html = (
+            f'<div class="cv-photo-badge">'
+            f'<img src="data:image/jpeg;base64,{b64_img}" alt="Portrait">'
+            f'</div>'
+        )
+
+    sections_html: list[str] = []
+    for section in dict.fromkeys(f["section"] for f in facts):
+        sec_facts = [f for f in facts if f["section"] == section]
+        if not sec_facts:
+            continue
+        icon = {
+            "Education": "🎓",
+            "Assessed Learning": "✅",
+            "Skills": "⚡",
+            "Projects": "🚀",
+            "Achievements": "🏆",
+            "Relevant Coursework": "📚",
+        }.get(section, "📌")
+
+        items_html: list[str] = []
+        for fact in sec_facts:
+            text = escape(fact["text"])
+            extra_badge = ""
+            if "100%" in text or "formative assessment" in text:
+                extra_badge = '<span class="cv-score-pill">Verified Score</span>'
+            link_html = ""
+            if fact.get("url"):
+                link_html = (
+                    f'<a class="cv-evidence-link" href="{escape(fact["url"])}" '
+                    f'target="_blank" rel="noopener">Evidence ↗</a>'
+                )
+            items_html.append(
+                f'<div class="cv-fact-row">'
+                f'<span class="cv-fact-bullet">•</span>'
+                f'<div class="cv-fact-body">{text}{extra_badge}{link_html}</div>'
+                f'</div>'
+            )
+        sections_html.append(
+            f'<div class="cv-section-block">'
+            f'<div class="cv-section-heading"><span>{icon}</span> {escape(section)}</div>'
+            f'{"".join(items_html)}'
+            f'</div>'
+        )
+
+    subtitle_html = f'<div class="cv-header-subtitle">{degree}</div>' if degree else ""
+    pills_row = "".join(pills_html)
+    sections_body = "".join(sections_html)
+
+    sheet_html = (
+        f'<div class="cv-preview-container">'
+        f'<div class="cv-header-row">'
+        f'<div class="cv-header-info">'
+        f'<div class="cv-header-name">{name}</div>'
+        f'{subtitle_html}'
+        f'<div class="cv-header-pills">{pills_row}</div>'
+        f'</div>'
+        f'{photo_html}'
+        f'</div>'
+        f'<div class="cv-divider"></div>'
+        f'{sections_body}'
+        f'</div>'
+    )
+    st.markdown(sheet_html, unsafe_allow_html=True)
 
 
 def render_cv_studio(ctx: UserContext, ai: AIService, job: dict | None) -> None:
@@ -116,24 +209,32 @@ def render_cv_studio(ctx: UserContext, ai: AIService, job: dict | None) -> None:
         key=f"cv_facts_{ctx.user_id}_{twin['meta']['twin_version']}_{'|'.join(included)}_{len(facts)}",
     )
     visible = [visible[i] for i in selected_indices]
-    with st.container(border=True):
-        if photo and use_photo:
-            st.image(photo, width=100)
+
+    # Professional graphical CV sheet preview
+    photo_bytes = photo if (photo and use_photo) else None
+    render_professional_cv_preview(twin, visible, photo_bytes)
+
+    with st.expander("Raw markdown view"):
         st.markdown(cv_markdown(twin, visible))
+
     if visible:
-        photo_bytes = photo if use_photo else None
         col1, col2 = st.columns(2)
         col1.download_button(
             "Download PDF",
             export_pdf(twin, visible, photo_bytes),
             "student_cv.pdf",
             "application/pdf",
+            icon=":material/picture_as_pdf:",
+            type="primary",
+            width="stretch",
         )
         col2.download_button(
             "Download DOCX",
             export_docx(twin, visible, photo_bytes),
             "student_cv.docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            icon=":material/description:",
+            width="stretch",
         )
     if letters:
         with st.expander("Cover letter"):

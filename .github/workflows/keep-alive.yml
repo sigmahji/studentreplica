@@ -1,0 +1,25 @@
+name: Keep App Alive
+
+on:
+  schedule:
+    # Ping every 30 minutes to keep Streamlit Community Cloud active and prevent sleeping
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  keep_alive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send keep-alive ping
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://studentreplica.streamlit.app' }}
+        run: |
+          echo "Sending keep-alive ping to $APP_URL..."
+          HTTP_STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" --max-time 30 "$APP_URL" || echo "000")
+          echo "HTTP status code: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 500 ]; then
+            echo "Success: Streamlit instance is awake and responsive."
+          else
+            echo "Ping delivered (HTTP $HTTP_STATUS). Inactivity timer reset."
+          fi

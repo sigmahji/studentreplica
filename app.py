@@ -33,6 +33,7 @@ from modules.cv_ui import render_cv_studio
 from modules.onboarding_tour import render_guided_tour
 from modules.google_auth import logout_current_session, render_google_login, sync_google_login
 from storage.auth import create_account, get_account_by_user_id, login_account
+from storage.session_token import create_session_token, validate_session_token
 from storage.context import UserContext
 from storage.database import init_db, reset_engine, session_scope
 from storage.repository import TwinRepository
@@ -65,6 +66,23 @@ if "ai_force_mock" not in st.session_state:
     st.session_state["ai_force_mock"] = False
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
+
+if not st.session_state.get("logged_in"):
+    try:
+        session_token = st.query_params.get("session")
+        if session_token:
+            uid = validate_session_token(session_token)
+            if uid:
+                with session_scope() as session:
+                    acc = get_account_by_user_id(session, uid)
+                    if acc:
+                        st.session_state["logged_in"] = True
+                        st.session_state["user_id"] = uid
+                        st.session_state["auth_mode"] = "Log in"
+            if not st.session_state.get("logged_in"):
+                st.query_params.pop("session", None)
+    except Exception:
+        pass
 
 sync_google_login()
 render_shell()
@@ -117,11 +135,11 @@ if not st.session_state["logged_in"]:
 
     with auth_tab:
         render_google_login()
-        auth_mode = st.session_state.get("auth_mode", "Create account")
+        auth_mode = st.session_state.get("auth_mode", "Log in")
         mode = st.radio(
             "I want to",
-            ["Create account", "Log in"],
-            index=1 if auth_mode == "Log in" else 0,
+            ["Log in", "Create account"],
+            index=0 if auth_mode == "Log in" else 1,
             horizontal=True,
         )
         st.session_state["auth_mode"] = mode
@@ -130,6 +148,11 @@ if not st.session_state["logged_in"]:
         display_name = ""
         if mode == "Create account":
             display_name = st.text_input("Display name (optional)", max_chars=120)
+        remember_me = st.checkbox(
+            "Remember me on this device (30 days)",
+            value=True,
+            help="Keeps you signed in across browser restarts and prevents session loss.",
+        )
         if st.button("Continue", type="primary"):
             with session_scope() as session:
                 if mode == "Create account":
@@ -147,6 +170,16 @@ if not st.session_state["logged_in"]:
                 st.session_state["logged_in"] = True
                 st.session_state["user_id"] = result.user_id
                 st.session_state["auth_mode"] = "Log in"
+                if remember_me:
+                    try:
+                        st.query_params["session"] = create_session_token(result.user_id)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        st.query_params.pop("session", None)
+                    except Exception:
+                        pass
                 st.success(result.message)
                 st.rerun()
             else:

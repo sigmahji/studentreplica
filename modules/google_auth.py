@@ -80,6 +80,10 @@ def clear_login_state() -> None:
     st.session_state["ui_theme"] = theme
     st.session_state["logged_in"] = False
     st.session_state["auth_mode"] = "Log in"
+    try:
+        st.query_params.pop("session", None)
+    except Exception:
+        pass
 
 
 def logout_current_session() -> None:
@@ -136,6 +140,12 @@ def sync_google_login() -> None:
     st.session_state["logged_in"] = True
     st.session_state["user_id"] = result.user_id
     st.session_state["auth_provider"] = "google"
+    try:
+        from storage.session_token import create_session_token
+
+        st.query_params["session"] = create_session_token(result.user_id)
+    except Exception:
+        pass
 
 
 def render_google_login() -> None:

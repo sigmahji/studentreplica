@@ -12,3 +12,4 @@ reportlab>=4.2.5
 plotly>=5.24.1
 pandas>=2.3.3
 Pillow>=11.3
+itsdangerous>=2.2.0
